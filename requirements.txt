@@ -1,0 +1,23 @@
+pip~=24.2
+tqdm
+
+# AI
+torch
+torchvision
+torchaudio
+torchnet
+
+# Data Preparation
+geopandas
+pandas
+numpy
+rioxarray
+pystac-client
+stackstac
+scipy
+
+# Backend
+GeoAlchemy2~=0.17.0
+Flask~=3.1.0
+flask-sqlalchemy
+flsak-migrate
