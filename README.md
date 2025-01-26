@@ -1,5 +1,5 @@
 # ALUMS
-** Agricultural Land Use Management System **
+**Agricultural Land Use Management System**
 
 ---
 
@@ -39,6 +39,7 @@ This repository is currently under development. Please refer to the individual f
 ## Developers:
 
 Mirshod Makhsudov (AI, Backend, GIS)
+
 Akbar Khusanbayev (iOS)
 
 ## Additional Notes:
