@@ -280,7 +280,7 @@ class Parcel(db.Model):
             db.session.close()
 
     def to_dict(self):
-        geom_json = db.session.scalar(func.ST_AsGeoJSON(self.geom))
+        geom_json = db.session.scalar(func.ST_AsGeoJSON(self.parcel_geom))
         return {
             'parcel_id': self.parcel_id,
             'parcel_geom': geom_json,
@@ -289,7 +289,6 @@ class Parcel(db.Model):
             'district': self.district,
             'region': self.region,
             'kontur_number': self.kontur_number,
-            'cadastre_number': self.cadastre_number,
             'last_checked_on': self.last_checked_on.isoformat() if self.last_checked_on else None,
             'farmer_crop_type': self.farmer_crop_type.to_dict() if self.farmer_crop_type else None,
             'classified_crop_type': self.classified_crop_type.to_dict() if self.classified_crop_type else None,

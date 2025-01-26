@@ -23,21 +23,27 @@ def add_crop_type():
     Returns:
 
     """
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    user = User.get(data['requested_from'])
+        user = User.get(data['requested_from'])
 
-    if user.role != 'admin':
+        if user.role != 'admin':
+            return {
+                'message': "Only admin can add new crops"
+            }, 400
+
+        new_crop_type = CropType(**data['data'])
+        new_crop_type.add()
+
         return {
-            'message': "Only admin can add new crops"
+            "message": "Created successfully"
+        }, 201
+    except Exception as e:
+        print(e)
+        return {
+            "message": "Error occurred"
         }, 400
-
-    new_crop_type = CropType(**data['data'])
-    new_crop_type.add()
-
-    return {
-        "message": "Created successfully"
-    }, 201
 
 
 @bp.get('/crops')
@@ -57,17 +63,17 @@ def get_crop_by_id(crop_id):
 @bp.get('/')
 def get_parcels():
     """
-    Body: region, district. Both must be present
+    Query Params: region, district. Both must be present
     Returns:
 
     """
-    data = request.get_json()
-    if 'region' in data and 'district' in data:
-        parcels = Parcel.get_all(region=data['region'], district=data['district'])
-
+    query_args = request.args
+    if 'region' in query_args and 'district' in query_args:
+        parcels = Parcel.get_all(region=query_args['region'], district=query_args['district'])
+        res = [parcel.to_dict() for parcel in parcels]
         return {
-            'data': [parcel.to_dict() for parcel in parcels],
-            'total': len(parcels)
+            'data': res,
+            'total': len(res)
         }, 200
 
 

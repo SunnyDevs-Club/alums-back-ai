@@ -1,6 +1,7 @@
 import torch
 import torch.utils.data as data
 import numpy as np
+import pandas as pd
 
 import os
 import pickle as pkl
@@ -13,10 +14,9 @@ from dataset import PixelSetData
 
 
 def prepare_model_and_loader(config):
-    mean_std = pkl.load(open(config['dataset_folder'] + '/S2-2017-T31TFM-meanstd.pkl', 'rb'))
+    mean_std = pkl.load(open(config['dataset_folder'] + '/S2B-2024-meanstd.pkl', 'rb'))
     extra = 'geomfeat' if config['geomfeat'] else None
-    dt = PixelSetData(config['dataset_folder'], labels='label_44class', npixel=config['npixel'],
-                      sub_classes=[1, 3, 4, 5, 6, 8, 9, 12, 13, 14, 16, 18, 19, 23, 28, 31, 33, 34, 36, 39],
+    dt = PixelSetData(config['dataset_folder'], labels='label_MoA_protoclass', npixel=config['npixel'],
                       norm=mean_std,
                       extra_feature=extra, return_id=True)
     dl = data.DataLoader(dt, batch_size=config['batch_size'], num_workers=config['num_workers'])
@@ -49,7 +49,7 @@ def predict(model, loader, config):
     device = torch.device(config['device'])
 
     for (x, y, ids) in tqdm(loader):
-        y_true = (list(map(int, y)))
+        y_true = list(map(int, y))
         ids = list(ids)
 
         x = recursive_todevice(x, device)
@@ -57,12 +57,19 @@ def predict(model, loader, config):
             prediction = model(x)
         y_p = list(prediction.argmax(dim=1).cpu().numpy())
 
-        record.append(np.stack([ids, y_true, y_p], axis=1))
+        record.extend(zip(ids, y_true, y_p))  # Use extend for flat lists of tuples
 
-    record = np.concatenate(record, axis=0)
+    # Convert the record to a DataFrame
+    df = pd.DataFrame(record, columns=['id', 'y_true', 'y_pred'])
 
+    # Create output directory if it doesn't exist
     os.makedirs(config['output_dir'], exist_ok=True)
-    np.save(os.path.join(config['output_dir'], 'Predictions_id_ytrue_y_pred.npy'), record)
+
+    # Save the DataFrame as a CSV file
+    output_csv_path = os.path.join(config['output_dir'], 'Predictions_id_ytrue_y_pred.csv')
+    df.to_csv(output_csv_path, index=False)
+
+    print(f"Predictions saved to {output_csv_path}")
 
 
 def main(config):

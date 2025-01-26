@@ -67,11 +67,6 @@ class PixelSetData(data.Dataset):
             self.target = list(np.array(self.target)[sub_indices])
             self.len = len(sub_indices)
 
-        # with open(os.path.join(folder, 'META', 'dates.json'), 'r') as file:
-        #     d = json.loads(file.read())
-        # self.dates = [d[str(i)] for i in range(len(d))]
-        # self.date_positions = date_positions(self.dates)
-
         if self.extra_feature is not None:
             with open(os.path.join(self.meta_folder, '{}.json'.format(extra_feature)), 'r') as file:
                 self.extra = json.loads(file.read())
@@ -156,6 +151,110 @@ class PixelSetData(data.Dataset):
             return data, torch.from_numpy(np.array(y, dtype=int)), self.pid[item]
         else:
             return data, torch.from_numpy(np.array(y, dtype=int))
+
+
+class PixelSetData_inference(data.Dataset):
+    def __init__(self, folder, npixel, norm=None, extra_feature=None):
+        """
+        Dataset class for inference with Pixel-Set sequences.
+
+        Args:
+            folder (str): Path to the main folder of the dataset, formatted as indicated in the readme.
+            npixel (int): Number of sampled pixels in each parcel.
+            norm (tuple): (mean, std) tuple to use for normalization.
+            extra_feature (str): Name of the additional static feature file to use (optional).
+        """
+        super(PixelSetData_inference, self).__init__()
+
+        self.folder = folder
+        self.data_folder = os.path.join(folder, 'DATA')
+        self.meta_folder = os.path.join(folder, 'META')
+        self.npixel = npixel
+        self.norm = norm
+        self.extra_feature = extra_feature
+
+        # List all data files
+        l = [f for f in os.listdir(self.data_folder) if f.endswith('.npy')]
+        self.pid = [int(f.split('.')[0]) for f in l]
+        self.pid = list(np.sort(self.pid))
+
+        self.pid = list(map(str, self.pid))
+        self.len = len(self.pid)
+
+        # Load extra features if specified
+        if self.extra_feature is not None:
+            with open(os.path.join(self.meta_folder, f'{extra_feature}.json'), 'r') as file:
+                self.extra = json.loads(file.read())
+
+            if isinstance(self.extra[list(self.extra.keys())[0]], int):
+                for k in self.extra.keys():
+                    self.extra[k] = [self.extra[k]]
+            df = pd.DataFrame(self.extra).transpose()
+            self.extra_m, self.extra_s = np.array(df.mean(axis=0)), np.array(df.std(axis=0))
+
+    def __len__(self):
+        return self.len
+
+    def __getitem__(self, item):
+        """
+        Returns a Pixel-Set sequence tensor with its pixel mask and optional additional features.
+
+        Returns:
+            (Pixel-Set, Pixel-Mask) or ((Pixel-Set, Pixel-Mask), Extra-features):
+                Pixel-Set: Sequence_length x Channels x npixel
+                Pixel-Mask: Sequence_length x npixel
+                Extra-features: Sequence_length x Number of additional features (if specified)
+        """
+        x0 = np.load(os.path.join(self.folder, 'DATA', f'{self.pid[item]}.npy'))
+
+        if x0.shape[-1] > self.npixel:
+            idx = np.random.choice(list(range(x0.shape[-1])), size=self.npixel, replace=False)
+            x = x0[:, :, idx]
+            mask = np.ones(self.npixel)
+
+        elif x0.shape[-1] < self.npixel:
+            if x0.shape[-1] == 0:
+                x = np.zeros((*x0.shape[:2], self.npixel))
+                mask = np.zeros(self.npixel)
+                mask[0] = 1
+            else:
+                x = np.zeros((*x0.shape[:2], self.npixel))
+                x[:, :, :x0.shape[-1]] = x0
+                x[:, :, x0.shape[-1]:] = np.stack([x[:, :, 0] for _ in range(x0.shape[-1], x.shape[-1])], axis=-1)
+                mask = np.array(
+                    [1 for _ in range(x0.shape[-1])] + [0 for _ in range(x0.shape[-1], self.npixel)])
+        else:
+            x = x0
+            mask = np.ones(self.npixel)
+
+        if self.norm is not None:
+            m, s = self.norm
+            m = np.array(m)
+            s = np.array(s)
+
+            if len(m.shape) == 0:
+                x = (x - m) / s
+            elif len(m.shape) == 1:
+                x = (x.swapaxes(1, 2) - m) / s
+                x = x.swapaxes(1, 2)
+            elif len(m.shape) == 2:
+                x = np.rollaxis(x, 2)
+                x = (x - m) / s
+                x = np.swapaxes((np.rollaxis(x, 1)), 1, 2)
+
+        x = x.astype('float')
+
+        mask = np.stack([mask for _ in range(x.shape[0])], axis=0)
+        data = (Tensor(x), Tensor(mask))
+
+        if self.extra_feature is not None:
+            ef = (self.extra[str(self.pid[item])] - self.extra_m) / self.extra_s
+            ef = torch.from_numpy(ef).float()
+
+            ef = torch.stack([ef for _ in range(data[0].shape[0])], dim=0)
+            data = (data, ef)
+
+        return data, self.pid[item]
 
 
 class PixelSetData_preloaded(PixelSetData):

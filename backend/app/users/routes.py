@@ -73,8 +73,7 @@ def create_user():
         **data['data']
     }
 
-    new_user = User(**user_data)
-    new_user.created_by_user = data['requested_from']
+    new_user = User(created_by=admin.user_id, **user_data)
     new_user.add()
 
     return {

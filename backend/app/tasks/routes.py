@@ -37,13 +37,14 @@ def create_task():
             "message": 'You do not have permission to create this task'
         }, 400
 
+    parsed_date = datetime.datetime.fromisoformat(data['deadline_date'].replace("Z", "+00:00")).date()
     new_task = Task(
         name=data['name'],
         description=data['description'],
         admin_id=body['requested_from'],
         worker_id=data['worker_id'],
         group_id=data['group_id'],
-        deadline_date=datetime.date.fromisoformat(data['deadline_date'])
+        deadline_date=parsed_date
     )
 
     new_task.add()

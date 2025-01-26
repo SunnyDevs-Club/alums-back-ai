@@ -6,7 +6,7 @@ import os
 
 from config import Config
 from app.extensions import db, swagger
-from app.models import User
+from app.models import User, Parcel
 
 
 def create_app(config_class=Config):
@@ -70,12 +70,5 @@ def create_app(config_class=Config):
                 "status": False,
                 "role": None
             }
-
-    #
-    # with app.app_context():
-    #     db.session.execute(text('DROP TABLE "user" CASCADE;'))
-    #     db.session.commit()
-    #     db.drop_all()
-    #     db.create_all()
 
     return app
