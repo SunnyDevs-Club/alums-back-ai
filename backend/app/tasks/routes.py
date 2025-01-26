@@ -3,7 +3,7 @@ import datetime
 from flask import request
 
 from app.tasks import bp
-from app.models import Task, User, Parcel
+from app.models import Task, User, Parcel, db
 
 
 @bp.post("/")
@@ -47,13 +47,15 @@ def create_task():
         deadline_date=parsed_date
     )
 
-    new_task.add()
+    db.session.add(new_task)
 
     for parcel_id in data['parcels']:
         parcel = Parcel.get(parcel_id)
         parcel.current_task = new_task.task_id
         parcel.current_task_is_checked = False
-        parcel.update()
+    
+    db.session.commit()
+    
 
     return {
         "message": "Successfully created new task"
