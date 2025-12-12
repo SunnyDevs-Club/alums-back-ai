@@ -18,8 +18,7 @@ from dask.diagnostics import ProgressBar
 from tqdm import tqdm
 
 from ml_core.config import Config
-from ml_core.inference.utils import convert_numpy
-
+from ml_core.utils import convert_numpy
 
 polygons = gpd.read_file(Config.PROJ_DIR / 'data' / 'polygons_data.geojson')
 

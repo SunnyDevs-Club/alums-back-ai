@@ -17,14 +17,14 @@ def load_model(config: Config):
         positions=None,
         mlp4=config.MLP4
     )
-    
+
     if config.GEOMETRIC_FEATURES:
         model_config.update(with_extra=True, extra_size=4)
     else:
         model_config.update(with_extra=False, extra_size=None)
 
     model = PseTae_pretrained(
-        config.WEIGHT_DIR,
+        str(config.WEIGHT_DIR),
         model_config,
         device=config.DEVICE,
         fold=config.FOLD_NUM

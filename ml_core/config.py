@@ -1,7 +1,7 @@
 from pathlib import Path
 
 class Config:
-    PROJ_DIR: Path = Path(__file__).resolve().parent
+    PROJ_DIR: Path = Path(__file__).parent.parent
 
     # Model & Data Loader Initializing
     DATASET_DIR: Path = PROJ_DIR / 'data' / 'inference'
