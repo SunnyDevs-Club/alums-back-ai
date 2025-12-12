@@ -1,0 +1,11 @@
+numpy
+pandas
+geopandas
+rioxarray
+pystac_client
+stackstac
+scipy
+openpyxl
+torch
+tqdm
+scikit-learn

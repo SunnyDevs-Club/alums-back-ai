@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+data/
+.env/
+results/
+*.ipynb
+pretrained
+output/
+.idea
+.vscode
+.idx
