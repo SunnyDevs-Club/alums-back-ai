@@ -1,3 +1,7 @@
+import os
+import shutil
+import json
+import pickle as pkl
 from typing import List, Tuple
 
 import geopandas as gpd
@@ -8,11 +12,16 @@ import stackstac
 import shapely
 import pystac_client
 import numpy as np
+import scipy.stats as st
 
 from dask.diagnostics import ProgressBar
+from tqdm import tqdm
 
 from ml_core.config import Config
+from ml_core.inference.utils import convert_numpy
 
+
+polygons = gpd.read_file(Config.PROJ_DIR / 'data' / 'polygons_data.geojson')
 
 def retrieve_rows_by_pairs(gdf: gpd.GeoDataFrame, pairs: List[Tuple[float | int, str]]):
     """
@@ -77,22 +86,19 @@ def _delete_duplicates(stack: xr.Dataset) -> xr.Dataset:
 def generate_time_series(
     polygon: shapely.geometry.Polygon,
     stac_client: pystac_client.Client,
-    collections: list,
-    dates_range: str,
     config: Config
 ) -> np.ndarray:
     items = stac_client.search(
-        collections=collections,
+        collections=config.COLLECTION,
         intersects=polygon,
-        datetime=dates_range,
+        datetime=config.DATE_RANGE,
         query={
             "platform": "sentinel-2b",
             "eo:cloud_cover": {"lt": 20}
         }
-        # max_items=4
     ).item_collection()
 
-    sentinel_stack = _create_stack(items=items, bands=RES_10M_BANDS + RES_20M_BANDS, bounds=polygon.bounds)
+    sentinel_stack = _create_stack(items=items, bands=config.RES_10M_BANDS + config.RES_20M_BANDS, bounds=polygon.bounds)
     sentinel_stack = _delete_duplicates(sentinel_stack)
 
     with ProgressBar():
@@ -153,3 +159,75 @@ def update_mean_std(running_mean, running_var, total_pixels, batch_mean, batch_v
     updated_mean = running_mean + (batch_pixels / total_pixels_new) * delta
     updated_var = running_var + batch_var + (total_pixels * batch_pixels / total_pixels_new) * (delta ** 2)
     return updated_mean, updated_var, total_pixels_new
+
+
+def prepare_inference_data(data_pairs: list[tuple[float | int, str]], config: Config) -> None:
+    print("Starting pySTAC Client...")
+    client = pystac_client.Client.open(config.STAC_SERVICE_URL)
+
+    if config.DATASET_DIR.exists():
+        shutil.rmtree(config.DATASET_DIR)
+
+    os.mkdir(config.DATASET_DIR)
+    os.mkdir(config.DATASET_DIR / 'DATA')
+    os.mkdir(config.DATASET_DIR / 'META')
+
+    geom_features_collection = dict()
+
+    labels_collection = {"label_MoA_protoclass": {}}
+    shapes_collection = {}
+
+    # Initialize variables for incremental mean and std
+    running_mean = 0
+    running_var = 0
+    total_pixels = 0
+
+    current_polygons = retrieve_rows_by_pairs(polygons, data_pairs)
+
+    for _, row in tqdm(current_polygons.iterrows(), desc='Time Series data generation', total=len(current_polygons)):
+        try:
+            parcel_id = row.id
+            geom: shapely.Polygon = row.geometry
+            if not shapely.is_valid(geom):
+                continue
+            arr = generate_time_series(polygon=row.geometry,
+                                       stac_client=client,
+                                       config=config
+                                       )
+
+            # Update means and stds using the helper function
+            batch_pixels = arr.shape[2]  # Number of spatial pixels
+            batch_mean = np.mean(arr, axis=(0, 2))  # Mean across time and spatial dimensions
+            batch_var = np.var(arr, axis=(0, 2))  # Variance across time and spatial dimensions
+
+            running_mean, running_var, total_pixels = update_mean_std(
+                running_mean, running_var, total_pixels, batch_mean, batch_var, batch_pixels
+            )
+
+            geom_features = generate_geom_features(row.geometry, arr)
+            geom_features_collection[str(parcel_id)] = geom_features
+            np.save(config.DATASET_DIR / f'DATA/{parcel_id}.npy', arr)
+
+            crop_label = config.CROP_LABELS[row.crop_type]
+            labels_collection["label_MoA_protoclass"][str(parcel_id)] = crop_label
+
+            shapes_collection[str(parcel_id)] = arr.shape[0]
+        except ValueError:
+            pid = parcel_id if 'parcel_id' in locals() else getattr(row, 'id', '<unknown>')
+            print(f"Error generating Time-Series for parcel: {pid}")
+            continue
+
+    # Save geometric features
+    running_std = np.sqrt(running_var)
+    with open(config.DATASET_DIR / 'S2-2024-meanstd.pkl', 'wb') as f:
+        pkl.dump((running_mean, running_std), f)
+
+    with open(config.DATASET_DIR / 'META/geomfeat.json', 'w') as file:
+        json.dump(geom_features_collection, file, indent=4, default=convert_numpy)
+
+    with open(config.DATASET_DIR / 'META/shapes.json', 'w') as file:
+        json.dump(shapes_collection, file, indent=4, default=convert_numpy)
+
+    # Save labels to labels.json
+    with open(config.DATASET_DIR / 'META/labels.json', 'w') as label_file:
+        json.dump(labels_collection, label_file, indent=4, default=convert_numpy)
