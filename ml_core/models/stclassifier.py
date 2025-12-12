@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 
-from models.pse import PixelSetEncoder
-from models.tae import TemporalAttentionEncoder
-from models.decoder import get_decoder
-from learning.weight_init import weight_init
+from ml_core.models.pse import PixelSetEncoder
+from ml_core.models.tae import TemporalAttentionEncoder
+from ml_core.models.decoder import get_decoder
+from ml_core.learning.weight_init import weight_init
 
 
 class PseTae(nn.Module):

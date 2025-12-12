@@ -9,3 +9,6 @@ openpyxl
 torch
 tqdm
 scikit-learn
+xarray
+shapely
+dask
